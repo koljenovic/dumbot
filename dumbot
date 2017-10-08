@@ -1,0 +1,279 @@
+#!/usr/bin/python
+# -*- coding: utf-8 -*-
+import sys, time, json
+from api.secret import BittrexKey
+from api.bittrex import Bittrex
+from decimal import *
+
+version = 'v0.1.3alpha'
+k = BittrexKey()
+b = Bittrex(k.get_key(), k.get_secret())
+
+open_orders = []
+last_command = ''
+repeat_command = False
+
+print
+print '- $$$ DUM฿0T ' + version + ' - Bittrex Terminal $$$ -'
+print 'Symbols and pairs MUST be written with $ sign as first character.'
+print 'Example: BAL $XRP or TICK $BTC-XRP Help: Type ? or help for assistance.'
+print 'QUIT or CTRL+C to stop the execution and exit.'
+print 'License: CC BY-SA @Mangefort 2017'
+print 'BTC Donations: 1LFZxGGjWVtQUvzm1vwyDWiG84uGA7Yag3'
+print
+
+try:
+	while True:
+		if not repeat_command:
+			i = raw_input('$> ')
+		else:
+			i = last_command
+			repeat_command = False
+
+		i = i.split(' ')
+
+		if i[0].lower() == '/':
+			repeat_command = True
+		else:
+			last_command = ' '.join(i)
+		if i[0] == '?' or i[0].lower() == 'help':
+			print 'BAL $SYM - check current wallet balance for $SYM.'
+			print 'BALS - print all non-zero balances.'
+			print 'TICK $SYM-SYM - get latest ticker data.'
+			print 'NTICK $SYM-SYM - loop latest ticker data each 10s, CTRL-C to break.'
+			print 'LIST - list all open orders and assign local order ID\'s'
+			print '        the first number for each order is it\'s ID'
+			print '        you will use this ID to cancel orders.'
+			print 'SELL $SYM-SYM #QTY @RATE - limit sell #QTY of $SYM-SYM at @RATE.'
+			print '        #QTY - #[13.37|MAX] decimal or MAX for maximum amount'
+			print '        @RATE - @[0.07|L|A|B] decimal or L for Last, A for Ask or B for Bid'
+			print '        Example: SELL $BTC-ETH #13.37 @0.1'
+			print '                 SELL $BTC-ETH #MAX @A'
+			print 'BUY $SYM-SYM #QTY @RATE - limit buy #QTY of $SYM-SYM at @RATE.'
+			print '        #QTY - #[13.37|MAX] decimal or MAX for maximum amount'
+			print '        @RATE - @[0.07|L|A|B] decimal or L for Last, A for Ask or B for Bid'
+			print '        Example: BUY $BTC-ETH #13.37 @0.08'
+			print '                 BUY $BTC-ETH #MAX @B'
+			print 'CANCEL :ID - cancel the order with local :ID number (LIST)'
+			print '/ - repeats the last issued command.'
+		if i[0].lower() == 'bal':
+			if len(i) == 2:
+				sym = i[1]
+				if sym[0] == '$':
+					balance = b.get_balance(sym[1:])
+					if balance['success']:
+						print '#', sym[1:] + ':',
+						print "%.8f" % round(balance['result']['Available'], 8), '/'
+						print "%.8f" % round(balance['result']['Balance'], 8)
+					else:
+						print 'ERR: ' + balance['message']
+				else:
+					print 'ERR: All symbols MUST be written with $ sign as first character.'
+			else:
+				print 'ERR: Exactly two arguments required.'
+				print 'EXAMPLE: BAL $XRP'
+		if i[0].lower() == 'bals':
+			balances = b.get_balances()
+			if balances['success']:
+				for balance in balances['result']:
+					if balance['Balance'] > 0:
+						print '# ' + balance['Currency'] + ': ' + "%.8f" % balance['Available'] + '\t|\t' + "%.8f" % balance['Balance']
+			else:
+				print 'ERR: ' + balance['message']
+		if i[0].lower() == 'tick':
+			if len(i) == 2:
+				sym = i[1]
+				if sym[0] == '$':
+					ticker = b.get_ticker(sym[1:])
+					if ticker['success']:
+						result = ticker['result']
+						print '#', sym[1:] + ':',
+						print 'LAST:',
+						print '%.8f' % round(result['Last'], 8),
+						print 'ASK:',
+						print '%.8f' % round(result['Ask'], 8),
+						print 'BID:',
+						print '%.8f' % round(result['Bid'], 8)
+					else:
+						print 'ERR: ' + ticker['message']
+				else:
+					print 'ERR: All symbols MUST be written with $ sign as first character.'
+			else:
+				print 'ERR: Exactly two arguments required.'
+				print 'EXAMPLE: TICK $BTC-XRP'
+		if i[0].lower() == 'ntick':
+			if len(i) == 2:
+				sym = i[1]
+				if sym[0] == '$':
+					while True:
+						try:
+							ticker = b.get_ticker(sym[1:])
+							if ticker['success']:
+								result = ticker['result']
+								print '#', sym[1:] + ':',
+								print 'LAST:',
+								print '%.8f' % round(result['Last'], 8),
+								print 'ASK:',
+								print '%.8f' % round(result['Ask'], 8),
+								print 'BID:',
+								print '%.8f' % round(result['Bid'], 8)
+							else:
+								print 'ERR: ' + ticker['message']
+							time.sleep(10)
+						except KeyboardInterrupt:
+							break
+				else:
+					print 'ERR: All symbols MUST be written with $ sign as first character.'
+			else:
+				print 'ERR: Exactly two arguments required.'
+				print 'EXAMPLE: TICK $BTC-XRP'
+		if i[0].lower() == 'list':
+			orders = b.get_open_orders()
+			if orders:
+				if orders['success']:
+					result = orders['result']
+					open_orders =[]
+					for order in result:
+						open_orders.append(order['OrderUuid'])
+						print '#', str(len(open_orders)) + ':', order['OrderType'], order['Exchange'],
+						print '#' + '%.8f' % round(order['QuantityRemaining'], 8) + '/' + '%.8f' % round(order['Quantity'], 8),
+						print '@' + '%.8f' % round(order['Limit'], 8)
+				else:
+					print 'ERR: ' + orders['message']
+		if i[0].lower() == 'cancel':
+			if len(i) == 2:
+				if len(open_orders) > 0:
+					if i[1][0] == ':' and int(i[1][1:]) <= len(open_orders):
+						cancel = b.cancel(open_orders[int(i[1][1:]) - 1])
+						if cancel:
+							if cancel['success']:
+								print '# ORDER CANCELED'
+							else:
+								print 'ERR:', cancel['message']
+					else:
+						print 'ERR: Exactly two arguments required.'
+						print 'EXAMPLE: CANCEL :1'
+				else:
+					print 'ERR: No recorded open orders, run LIST first.'
+		if i[0].lower() == 'sell':
+			if len(i) == 4:
+				if i[1][0] == '$' and i[2][0] == '#' and i[3][0] == '@':
+					pair = i[1][1:]
+					qty = i[2][1:]
+					price = i[3][1:]
+					skip = False
+					if price[0] in ['L', 'A', 'B']:
+						ticker = b.get_ticker(pair)
+						if ticker['success']:
+							ticker = ticker['result']
+							if i[3][1] == 'L':
+								price = ticker['Last']
+							if i[3][1] == 'A':
+								price = ticker['Ask']
+							if i[3][1] == 'B':
+								price = ticker['Bid']
+						else:
+							skip = True
+							print 'ERR: ' + ticker['message']
+					pairs = pair.split('-')
+					if qty == 'MAX':
+						balance = b.get_balance(pairs[1])
+						if balance['success']:
+							balance = balance['result']
+							qty = balance['Available']
+							getcontext().prec = 8
+							getcontext().rounding = ROUND_DOWN
+						else:
+							skip = True
+							print 'ERR: ' + ticker['message']
+					confirmation = 'NO'
+					if not skip:
+						total = Decimal(qty) * Decimal(price)
+						print 'DUMBOT~ SELL $' + pair + ' #' + '%.8f' % Decimal(qty) + ' @' + '%.8f' % Decimal(price) + ' =' + '%.8f' % Decimal(total) + ' ' + pairs[0]
+						confirmation = raw_input('DUMBOT~ YES to confirm: ')
+					else:
+						skip = False
+					if confirmation == 'YES':
+						sell_order = b.sell_limit(pair, Decimal(qty), Decimal(price))
+						if sell_order:
+							if sell_order['success']:
+								result = sell_order['result']
+								print '# LIMIT SELL PLACED', result['uuid']
+							else:
+								print 'ERR: ' + sell_order['message']
+						else:
+							print 'ERR: Sell order failed.'
+						# Track until filled ?
+					else:
+						print 'DUMBOT~ Order *NOT* confirmed!'
+				else:
+					print 'ERR: Argument prefixes ($#@) not correct.'
+					print 'EXAMPLE: SELL $BTC-ETH #13.37 @0.2'
+			else:
+				print 'ERR: Exactly four (4) arguments required.'
+				print 'EXAMPLE: SELL $BTC-ETH #1 @0.1'
+				print '			SELL $BTC-ETH #MAX @A'
+		if i[0].lower() == 'buy':
+			if len(i) == 4:
+				if i[1][0] == '$' and i[2][0] == '#' and i[3][0] == '@':
+					skip = False
+					pair = i[1][1:]
+					qty = i[2][1:]
+					price = i[3][1:]
+					if price[0] in ['L', 'A', 'B']:
+						ticker = b.get_ticker(pair)
+						if ticker['success']:
+							ticker = ticker['result']
+							if i[3][1] == 'L':
+								price = ticker['Last']
+							if i[3][1] == 'A':
+								price = ticker['Ask']
+							if i[3][1] == 'B':
+								price = ticker['Bid']
+						else:
+							skip = True
+							print 'ERR: ' + ticker['message']
+					pairs = pair.split('-')
+					if qty == 'MAX':
+						balance = b.get_balance(pairs[0])
+						if balance['success']:
+							balance = balance['result']
+							getcontext().prec = 8
+							getcontext().rounding = ROUND_DOWN
+							qty = Decimal(balance['Available']) / Decimal(price) * Decimal(0.995)
+						else:
+							skip = True
+							print 'ERR: ' + balance['message']
+					confirmation = 'NO'
+					if skip:
+						total = Decimal(qty) * Decimal(price)
+						print 'DUMBOT~ BUY $' + pair + ' #' + '%.8f' % Decimal(qty) + ' @' + '%.8f' % Decimal(price) + ' =' + '%.8f' % Decimal(total) + ' ' + pairs[0]
+						confirmation = raw_input('DUMBOT~ YES to confirm: ')
+					else:
+						skip = False
+					if confirmation == 'YES':
+						buy_order = b.buy_limit(pair, Decimal(qty), Decimal(price))
+						if buy_order:
+							if buy_order['success']:
+								result = buy_order['result']
+								print '# LIMIT BUY PLACED', result['uuid']
+							else:
+								print 'ERR: ' + buy_order['message']
+						else:
+							print 'ERR: Buy order failed.'
+						# Track until filled ?
+					else:
+						print 'DUMBOT~ Order *NOT* confirmed!'
+				else:
+					print 'ERR: Argument prefixes ($#@) not correct.'
+					print 'EXAMPLE: BUY $BTC-ETH #13.37 @0.2'
+					print '			BUY $BTC-ETH #MAX @B'
+
+			else:
+				print 'ERR: Exactly four (4) arguments required.'
+				print 'EXAMPLE: BUY $BTC-ETH #1 @0.1'
+		if i[0].lower() == 'quit':
+			break
+except KeyboardInterrupt:
+	print
+	pass
