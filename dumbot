@@ -18,7 +18,7 @@ print '- $$$ DUM฿0T ' + version + ' - Bittrex Terminal $$$ -'
 print 'Symbols and pairs MUST be written with $ sign as first character.'
 print 'Example: BAL $XRP or TICK $BTC-XRP Help: Type ? or help for assistance.'
 print 'QUIT or CTRL+C to stop the execution and exit.'
-print 'License: CC BY-SA @Mangefort 2017'
+print 'License: GNU GPL v3.0 @Mangefort 2017'
 print 'BTC Donations: 1LFZxGGjWVtQUvzm1vwyDWiG84uGA7Yag3'
 print
 
@@ -272,6 +272,28 @@ try:
 			else:
 				print 'ERR: Exactly four (4) arguments required.'
 				print 'EXAMPLE: BUY $BTC-ETH #1 @0.1'
+		if i[0].lower() == 'dat':
+			if len(i) == 2:
+				sym = i[1]
+				if sym[0] == '$':
+					summary = b.get_marketsummary(sym[1:])
+					if summary['success']:
+						s = summary['result'][0]
+						pair = s['MarketName'].split('-')
+						print '#', 'Summary:\t', sym[1:]
+						print '#', 'Last   :\t', '%.8f' % round(s['Last'], 8), pair[0]
+						print '#', 'δ      :\t', '%.2f' % round(s['Last'] / s['PrevDay'] * 100. - 100., 2), '%'
+						print '#', 'Volume :\t', '%.2f' % round(s['BaseVolume'], 2), pair[0]
+						print '#', 'H|L|δ  :\t', '%.8f' % round(s['High'], 8), '|\t', '%.8f' % round(s['Low'], 8), pair[0], '|', round(s['Low'] / s['High'] * 100. - 100., 2), '%'
+						print '#', 'B|A|δ  :\t', '%.8f' % round(s['Bid'], 8), '|\t', '%.8f' % round(s['Ask'], 8), pair[0], '|', round(s['Bid'] / s['Ask'] * 100. - 100., 2), '%'
+						print '#', 'B/S    :\t', s['OpenBuyOrders'], '/', s['OpenSellOrders']
+					else:
+						print 'ERR: ' + summary['message']
+				else:
+					print 'ERR: All symbols MUST be written with $ sign as first character.'
+			else:
+				print 'ERR: Exactly two arguments required.'
+				print 'EXAMPLE: DAT $BTC-XRP'
 		if i[0].lower() == 'quit':
 			break
 except KeyboardInterrupt:
